@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SHVERDER | Acid Station</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;700&family=Dancing+Script:wght@500&display=swap');
+
+        :root {
+            --panel-bg: #0d0d0d;
+            --accent: #39ff14; 
+            --accent-dim: #1a3d0a;
+            --glass: rgba(255, 255, 255, 0.03);
+            --knob-cap: #1a1a1a;
+            --wood: #4d2d1e;
+        }
+
+        .skin-green { --accent: #39ff14; --accent-dim: #1a3d0a; }
+        .skin-pink { --accent: #ff0055; --accent-dim: #3d0a1a; }
+        .skin-cyan { --accent: #00f2ff; --accent-dim: #003a40; }
+        .skin-amber { --accent: #ffb300; --accent-dim: #402d00; }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #main-container {
+            position: relative;
+            background: var(--panel-bg);
+            padding: 25px 45px;
+            border-radius: 4px;
+            border-left: 14px solid var(--wood);
+            border-right: 14px solid var(--wood);
+            box-shadow: 0 0 60px rgba(0,0,0,0.9);
+            width: 95vw;
+            max-width: 1100px;
+            user-select: none;
+        }
+
+        .screw { position: absolute; width: 10px; height: 10px; background: #222; border-radius: 50%; box-shadow: inset 1px 1px 3px #000; }
+        .tl { top: 15px; left: -8px; } .tr { top: 15px; right: -8px; }
+        .bl { bottom: 15px; left: -8px; } .br { bottom: 15px; right: -8px; }
+
+        header { display: grid; grid-template-columns: 1fr 1.5fr 1fr; align-items: center; margin-bottom: 25px; gap: 20px; }
+        
+        .logo-area h1 { margin: 0; font-size: 26px; letter-spacing: 5px; color: var(--accent); text-shadow: 0 0 10px var(--accent-dim); transition: 0.3s; }
+        .logo-area .sub-title-box { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+        .logo-area p { margin: 0; font-size: 10px; color: var(--accent); letter-spacing: 1.5px; opacity: 0.8; }
+        .signature { font-family: 'Dancing Script', cursive; font-size: 14px; color: var(--accent); opacity: 0.9; transition: color 0.3s; }
+
+        .oled-display {
+            background: #000;
+            border: 2px solid #222;
+            height: 60px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,1);
+            position: relative;
+            cursor: pointer;
+        }
+        .oled-display:hover { border-color: var(--accent); }
+        .oled-center { display: flex; flex-direction: column; align-items: center; flex-grow: 1; pointer-events: none; }
+        #oled-cat { font-size: 8px; color: var(--accent); text-transform: uppercase; margin-bottom: 2px; letter-spacing: 2px; opacity: 0.7; }
+        #oled-name { font-family: 'Roboto Mono'; font-size: 16px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; font-weight: bold; }
+        
+        .nav-arrow { background: #111; border: 1px solid #333; color: var(--accent); cursor: pointer; font-size: 12px; width: 30px; height: 30px; border-radius: 3px; display: flex; align-items: center; justify-content: center; transition: 0.2s; z-index: 5; }
+
+        .transport { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+        .bpm-display { background: #000; border: 1px solid #222; padding: 5px 8px; color: var(--accent); font-family: 'Roboto Mono'; font-size: 16px; border-radius: 3px; display: flex; align-items: center; gap: 10px; }
+        .bpm-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 18px; font-weight: bold; padding: 0 5px; }
+        .t-btn { background: #1a1a1a; border: 1px solid #333; color: #777; font-size: 9px; padding: 8px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 1px; transition: 0.1s; }
+        .t-btn.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); border-color: #fff; }
+
+        .section-label { font-size: 8px; color: #444; letter-spacing: 2px; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #222; display: inline-block; padding-bottom: 2px; }
+        .knob-row { display: grid; grid-template-columns: 0.8fr repeat(6, 1fr); gap: 12px; margin-bottom: 30px; }
+        
+        .osc-select { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+        .osc-btn { background: #111; border: 1px solid #222; color: #444; font-size: 8px; padding: 6px 8px; cursor: pointer; text-align: left; transition: 0.2s; }
+        .osc-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 8px var(--accent-dim); background: var(--accent-dim); }
+
+        .knob-unit { display: flex; flex-direction: column; align-items: center; gap: 10px; position: relative; }
+        .knob-unit label { font-size: 9px; color: #888; letter-spacing: 1px; font-weight: bold; white-space: nowrap; }
+        
+        .knob-container { position: relative; width: 58px; height: 58px; cursor: ns-resize; }
+        .knob-ring { width: 100%; height: 100%; transform: rotate(135deg); }
+        .knob-ring circle { fill: none; stroke: #1a1a1a; stroke-width: 5; stroke-dasharray: 125; }
+        .knob-ring .val-arc { stroke: var(--accent); stroke-dashoffset: 125; transition: stroke-dashoffset 0.05s linear; stroke-linecap: round; filter: drop-shadow(0 0 2px var(--accent)); }
+        
+        .knob-cap { position: absolute; width: 38px; height: 38px; background: radial-gradient(circle at 35% 35%, #333, #000); border-radius: 50%; border: 2px solid #111; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 5px 15px #000; }
+        .knob-cap::after { content: ''; position: absolute; top: 4px; left: 50%; width: 2.5px; height: 10px; background: #ff0000; transform: translateX(-50%); border-radius: 2px; box-shadow: 0 0 5px rgba(255,0,0,0.5); }
+
+        .dist-switch { position: absolute; bottom: -15px; display: flex; gap: 2px; background: #000; padding: 2px; border-radius: 2px; border: 1px solid #222; }
+        .dist-tgl { font-size: 6px; padding: 2px 4px; background: #111; border: none; color: #444; cursor: pointer; font-weight: bold; }
+        .dist-tgl.active { color: var(--accent); background: var(--accent-dim); }
+
+        .sequencer-area { background: rgba(0,0,0,0.4); padding: 15px 25px 25px 25px; border-radius: 4px; border: 1px solid #1a1a1a; margin-bottom: 25px; box-shadow: inset 0 0 20px #000; }
+        .len-selector { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; margin-bottom: 15px; }
+        .len-btn { background: #111; border: 1px solid #222; color: #444; font-size: 7px; padding: 4px 0; cursor: pointer; font-weight: bold; transition: 0.2s; border-radius: 1px; }
+        .len-btn.active { border-color: var(--accent); color: #fff; background: var(--accent-dim); }
+        .len-label { font-size: 8px; color: #444; letter-spacing: 3px; text-align: center; margin-bottom: 8px; font-weight: bold; }
+
+        .seq-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; }
+        .step-col { display: flex; flex-direction: column; align-items: center; gap: 5px; opacity: 0.3; transition: 0.3s; }
+        .step-col.in-range { opacity: 1; }
+        .step-led-bar { width: 100%; height: 4px; background: #111; border-radius: 1px; margin-bottom: 4px; }
+        .step-led-bar.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .step-led-dot { width: 5px; height: 5px; background: #222; border-radius: 50%; margin-bottom: 2px; }
+        .step-led-dot.active { background: #fff; box-shadow: 0 0 8px #fff; }
+
+        .step-pad { width: 100%; height: 45px; background: linear-gradient(#2a2a2a, #121212); border: 1px solid #333; border-radius: 3px; cursor: pointer; transition: 0.1s; }
+        .step-pad.active { background: var(--accent); border-color: #fff; box-shadow: 0 0 15px var(--accent-dim); }
+
+        .mini-btn { width: 100%; background: #1a1a1a; border: 1px solid #222; color: #666; font-size: 9px; padding: 4px 0; cursor: pointer; font-family: 'Roboto Mono'; border-radius: 2px; }
+        .note-view-select { font-family: 'Roboto Mono'; font-size: 9px; color: #fff; background: #000; width: 100%; text-align: center; padding: 4px 0; border: 1px solid #222; border-radius: 2px; font-weight: bold; cursor: pointer; outline: none; appearance: none; }
+
+        .toggle-row { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+        .tgl { font-size: 7px; padding: 4px 0; background: #111; border: 1px solid #222; color: #444; cursor: pointer; font-weight: bold; border-radius: 1px; }
+        .tgl.on { color: var(--accent); border-color: var(--accent); }
+
+        .fx-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; }
+
+        #preset-browser { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; display: none; flex-direction: column; padding: 40px; box-sizing: border-box; backdrop-filter: blur(10px); }
+        #preset-browser.open { display: flex; }
+        .browser-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--accent-dim); padding-bottom: 15px; margin-bottom: 20px; }
+        .browser-header h2 { margin: 0; color: var(--accent); letter-spacing: 5px; font-size: 20px; }
+        .close-browser { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 5px 15px; cursor: pointer; font-family: 'Orbitron'; font-size: 10px; }
+        .browser-content { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; overflow-y: auto; flex-grow: 1; }
+        .category-col h3 { font-size: 10px; color: #666; letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid #222; padding-bottom: 5px; }
+        .preset-list { display: flex; flex-direction: column; gap: 5px; }
+        .preset-item { background: #111; border: 1px solid #222; color: #aaa; padding: 8px; font-size: 11px; cursor: pointer; text-align: left; font-family: 'Roboto Mono'; transition: 0.1s; }
+        .preset-item:hover { border-color: var(--accent); color: #fff; background: var(--accent-dim); }
+        .preset-item.active { border-color: var(--accent); color: var(--accent); }
+    </style>
+</head>
+<body class="skin-amber">
+
+<div id="main-container">
+    <div class="screw tl"></div><div class="screw tr"></div>
+    <div class="screw bl"></div><div class="screw br"></div>
+
+    <header>
+        <div class="logo-area">
+            <h1>SHVERDER</h1>
+            <div class="sub-title-box">
+                <p>ACID STATION</p>
+                <span class="signature">by Lux Stiffmeister</span>
+            </div>
+        </div>
+        
+        <div class="oled-display" onclick="openBrowser(event)">
+            <button class="nav-arrow" onclick="navPreset(-1); event.stopPropagation();">◀</button>
+            <div class="oled-center">
+                <span id="oled-cat">BASS</span>
+                <span id="oled-name">ACID CORE</span>
+            </div>
+            <button class="nav-arrow" onclick="navPreset(1); event.stopPropagation();">▶</button>
+        </div>
+
+        <div class="transport">
+            <div class="bpm-display">
+                <button class="bpm-btn" onclick="adjBpm(-1)">-</button>
+                <span id="bpm-val">128</span>
+                <button class="bpm-btn" onclick="adjBpm(1)">+</button>
+            </div>
+            <button class="t-btn" id="start-btn" onclick="togglePlay(true)">START</button>
+            <button class="t-btn" id="stop-btn" onclick="togglePlay(false)">STOP</button>
+            <button class="t-btn" onclick="randomizePattern()">RANDOM</button>
+            <button class="t-btn" onclick="toggleSkin()">SKIN</button>
+        </div>
+    </header>
+
+    <div class="section-label">OSC & FILTER CONTROL</div>
+    <div class="knob-row">
+        <div class="osc-select">
+            <button class="osc-btn active" id="osc-saw" onclick="setWave('sawtooth')">SAW</button>
+            <button class="osc-btn" id="osc-squ" onclick="setWave('square')">SQR</button>
+            <button class="osc-btn" id="osc-tri" onclick="setWave('triangle')">TRI</button>
+        </div>
+        <div id="synth-knobs" style="display:contents"></div>
+    </div>
+
+    <div class="sequencer-area">
+        <div class="len-label">PATTERN LENGTH</div>
+        <div class="len-selector" id="len-selector"></div>
+        <div class="seq-grid" id="seq-grid"></div>
+    </div>
+
+    <div class="section-label">FX & MASTER</div>
+    <div class="fx-row" id="fx-knobs"></div>
+</div>
+
+<div id="preset-browser">
+    <div class="browser-header">
+        <h2>PRESET BROWSER</h2>
+        <button class="close-browser" onclick="closeBrowser()">CLOSE</button>
+    </div>
+    <div class="browser-content" id="browser-content"></div>
+</div>
+
+<script>
+    let bpm = 128;
+    let isPlaying = false;
+    let currentStep = 0;
+    let patternLength = 16;
+    let waveType = 'sawtooth';
+    let distMode = 'soft';
+    let ctx, master, filter, dist, delay, dFbk, dMix, reverb, rMix;
+    let currentSkinIndex = 3;
+    const skins = ['skin-green', 'skin-pink', 'skin-cyan', 'skin-amber'];
+    
+    let timerID;
+    let lookAhead = 25.0; 
+    let scheduleAheadTime = 0.1;
+    let nextNoteTime = 0.0;
+
+    const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const gNote = (n, len=16) => Array(len).fill(n);
+
+    const presets = [
+        { name: "ACID CORE", cat: "BASS", seq: [1,1,1,0,1,1,0,1,1,0,0,0,1,1,1,1], notes: gNote("C2"), slds: [0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0], len: 16, wav: 'sawtooth' },
+        { name: "DAFT FUNK", cat: "BASS", seq: [1,0,0,1,1,0,1,0,1,0,0,1,1,0,1,1], notes: ["C2","C2","C2","G2","C2","C2","A#2","C2","C2","C2","G2","C2","C2","C2","F2","C2"], slds: [0,0,0,1,0,0,1,0,0,0,1,0,0,0,1,1], len: 16, wav: 'sawtooth' },
+        { name: "MANUEL ACID", cat: "BASS", seq: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], notes: ["C2","C2","C3","C2","C3","C2","G2","A#2","C2","C2","C3","C2","C3","C2","G2","F2"], slds: [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,1], len: 16, wav: 'sawtooth' },
+        { name: "BERLIN WALL", cat: "BASS", seq: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0], notes: ["C1","C2","C1","C2","C1","G1","C1","A#1"], slds: [0,1,0,1,0,1,0,1], len: 16, wav: 'square' },
+        { name: "303 PURIST", cat: "BASS", seq: [1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,0], notes: gNote("C2"), slds: [0,0,1,0,0,1,0,1,0,0,0,0,0,0,0,0], len: 16, wav: 'sawtooth' },
+        { name: "ROBOT ROCK", cat: "BASS", seq: [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0], notes: ["D2","D2","D2","D2","F2","F2","G2","G2"], slds: [1,0,0,0,1,0,0,0], len: 16, wav: 'sawtooth' },
+        { name: "DEEP STATE", cat: "BASS", seq: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], notes: gNote("F1"), slds: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], len: 16, wav: 'triangle' },
+        { name: "VINTAGE SQ", cat: "BASS", seq: [1,0,0,1,0,0,1,0,1,0,1,1,0,0,1,1], notes: ["C2","G2","C2","F2"], slds: [0], len: 16, wav: 'square' },
+        { name: "MANUEL TOP", cat: "BASS", seq: [1,0,1,0,1,1,1,0], notes: ["C2","C3","G2","A#2"], slds: [1,1,1,0], len: 8, wav: 'sawtooth' },
+        { name: "SUB MARINER", cat: "BASS", seq: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], notes: ["C1"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "MODERN ACID", cat: "BASS", seq: [1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0], notes: ["C2","D#2","F2","G2"], slds: [1,1,1,1], len: 16, wav: 'sawtooth' },
+        { name: "TECHNO PUMP", cat: "BASS", seq: [0,1,0,1,0,1,0,1], notes: ["C2"], slds: [0], len: 8, wav: 'sawtooth' },
+        { name: "DARK WEB", cat: "BASS", seq: [1,0,0,1,0,1,1,0], notes: ["C1","C#1"], slds: [1,0,0,1], len: 8, wav: 'square' },
+        { name: "ROLLING T", cat: "BASS", seq: [0,1,1,1,0,1,1,1], notes: ["C2"], slds: [0], len: 8, wav: 'sawtooth' },
+        { name: "OMEGA ACID", cat: "BASS", seq: [1,1,1,1,1,1,1,1], notes: ["C2","C3","C2","C3"], slds: [1,0,1,0], len: 8, wav: 'sawtooth' },
+        { name: "XENO MORPH", cat: "PSY", seq: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], notes: ["C3","C2","C2","C2","D#3","C2","C2","C2","G3","C2","C2","C2","F3","C2","C2","C2"], slds: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], len: 16, wav: 'sawtooth' },
+        { name: "MANTRA DRV", cat: "PSY", seq: [0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1], notes: gNote("C2"), slds: [0], len: 16, wav: 'sawtooth' },
+        { name: "COSMIC JIG", cat: "PSY", seq: [1,0,1,1,0,1,1,0,1,1,0,1,1,1,1,1], notes: ["C3","C3","D#3","G3","F3","C4"], slds: [1,1,1,1], len: 12, wav: 'sawtooth' },
+        { name: "VOID WALKER", cat: "PSY", seq: [1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1], notes: ["C2","C3","C2","C3","C2","C3"], slds: [1], len: 16, wav: 'square' },
+        { name: "HYPNO FROG", cat: "PSY", seq: [1,1,1,1], notes: ["C2","C#2","C2","B1"], slds: [1,1,1,1], len: 4, wav: 'sawtooth' },
+        { name: "SHAMANIC", cat: "PSY", seq: [1,0,1,0,1,1,1,0], notes: ["C2","G2","C3"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "ASTRA PROJ", cat: "PSY", seq: [1,1,1,0,1,1,1,0], notes: ["D#3","D3","C3"], slds: [1,0,1], len: 8, wav: 'sawtooth' },
+        { name: "THIRD EYE", cat: "PSY", seq: [1,1,0,1,1,0,1,1], notes: ["C2","F2"], slds: [1,1], len: 8, wav: 'square' },
+        { name: "GOA SPIRIT", cat: "PSY", seq: [0,1,1,1,0,1,1,1], notes: ["A2"], slds: [0], len: 8, wav: 'sawtooth' },
+        { name: "CYBER TREE", cat: "PSY", seq: [1,1,1,1,1,1,1,1], notes: ["C4","G3","C4","G3"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "PULSE CODE", cat: "PSY", seq: [1,0,1,0,1,1,0,0], notes: ["C2"], slds: [0], len: 8, wav: 'square' },
+        { name: "BRAIN WAVE", cat: "PSY", seq: [1,1,1,1,1,1,1,1,1,1,1,1], notes: ["C2","C3","D#3"], slds: [1,0,1], len: 12, wav: 'sawtooth' },
+        { name: "DIGITAL FX", cat: "PSY", seq: [1,0,0,1,1,1,0,1], notes: ["C5","C2"], slds: [1], len: 8, wav: 'square' },
+        { name: "ECHO LOCA", cat: "PSY", seq: [1,0,1,0,1,0,1,0], notes: ["C2"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "Warp DRIVE", cat: "PSY", seq: [1,1,1,1,0,0,1,1], notes: ["C2","C3"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "ACID RAIN", cat: "LEAD", seq: [1,0,1,0,1,1,0,1,1,0,1,0,1,1,1,1], notes: ["C3","C4","C3","G3","A#3","C4","C3","C3","G3","G3","C3","C3","F3","F4","C3","C3"], slds: [0,1,0,1,1,0,0,0,0,0,0,0,0,1,0,0], len: 16, wav: 'sawtooth' },
+        { name: "SILVER BOX", cat: "LEAD", seq: [1,1,0,1,0,1,1,0,1,1,0,1,0,1,1,1], notes: gNote("C3"), slds: [1,1,0,1,0,1,1,0,1,1,0,1,0,1,1,1], len: 16, wav: 'sawtooth' },
+        { name: "HUMANOID", cat: "LEAD", seq: [1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,1], notes: ["E3","E3","E3","E3","C2","C2","G3","G3","G3","G3","C2","C2","A#3","A#3","A#3","A#3"], slds: [1,1,1,1,0,0,1,1,1,1,0,0,1,1,1,1], len: 16, wav: 'square' },
+        { name: "TECHNO DRILL", cat: "LEAD", seq: [1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1], notes: ["A3","C4","A3","D4","A3","E4"], slds: [0], len: 16, wav: 'sawtooth' },
+        { name: "ACID SMILE", cat: "LEAD", seq: [1,1,1,1,1,1,1,1], notes: ["C3","C4","D3","D4","E3","E4","F3","F4"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "GHOST IN", cat: "LEAD", seq: [1,0,0,1,0,0,1,0], notes: ["C4","G4","A#4"], slds: [1], len: 8, wav: 'triangle' },
+        { name: "REZ POWER", cat: "LEAD", seq: [1,1,1,0,1,1,1,0], notes: ["C3","C3","F3"], slds: [1,1,1], len: 8, wav: 'sawtooth' },
+        { name: "GLITCH HUB", cat: "LEAD", seq: [1,0,1,1,1,0,1,1], notes: ["C5","C4","G4"], slds: [0], len: 8, wav: 'square' },
+        { name: "MANUEL L1", cat: "LEAD", seq: [1,1,1,1,1,1,1,1], notes: ["C3","D3","E3","F3","G3","A3","B3","C4"], slds: [1,0,1,0,1,0,1,0], len: 8, wav: 'sawtooth' },
+        { name: "DAFT LEAD", cat: "LEAD", seq: [1,0,1,0,1,0,1,0], notes: ["C4","C4","G3","G3"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "SYNTH WAVE", cat: "LEAD", seq: [1,1,1,1,1,1,1,1], notes: ["G3","A3","B3","D4"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "ALARM ACID", cat: "LEAD", seq: [1,0,1,0,1,0,1,0], notes: ["C5","C2"], slds: [1], len: 8, wav: 'square' },
+        { name: "LASER BEAM", cat: "LEAD", seq: [1,1,1,1], notes: ["C6","C3"], slds: [1], len: 4, wav: 'sawtooth' },
+        { name: "DREAMY AC", cat: "LEAD", seq: [1,0,0,1,0,0,1,0], notes: ["C4","F4"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "ORBITAL", cat: "LEAD", seq: [1,1,1,1,1,1,1,1], notes: ["C3","D3","E3","G3"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "CYBER CLICK", cat: "PERC", seq: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], notes: gNote("C6"), slds: [0], len: 16, wav: 'square' },
+        { name: "ACID KICK", cat: "PERC", seq: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], notes: gNote("C1"), slds: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], len: 16, wav: 'triangle' },
+        { name: "HI HAT AC", cat: "PERC", seq: [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0], notes: gNote("C6"), slds: [0], len: 16, wav: 'square' },
+        { name: "TOM DRONE", cat: "PERC", seq: [1,0,0,1,0,0,1,0], notes: ["C2","G1"], slds: [1,0], len: 8, wav: 'triangle' },
+        { name: "WOOD STICK", cat: "PERC", seq: [1,1,1,1], notes: ["C5"], slds: [0], len: 4, wav: 'triangle' },
+        { name: "METAL BEAT", cat: "PERC", seq: [1,0,1,1], notes: ["C6"], slds: [0], len: 4, wav: 'square' },
+        { name: "BEEP BOX", cat: "PERC", seq: [1,1,1,1,1,1,1,1], notes: ["C6","G5"], slds: [0], len: 8, wav: 'square' },
+        { name: "TICK TOCK", cat: "PERC", seq: [1,0,1,0], notes: ["C6"], slds: [0], len: 16, wav: 'square' },
+        { name: "SUB PERC", cat: "PERC", seq: [1,0,0,0], notes: ["C1"], slds: [1], len: 4, wav: 'triangle' },
+        { name: "GLITCH P", cat: "PERC", seq: [1,1,0,1,1,0,1,1], notes: ["C5"], slds: [0], len: 8, wav: 'square' },
+        { name: "ZAPPER", cat: "PERC", seq: [1,0,0,0,1,0,0,0], notes: ["C6"], slds: [1], len: 8, wav: 'sawtooth' },
+        { name: "INDUSTRIAL", cat: "PERC", seq: [1,1,1,1], notes: ["C2"], slds: [1], len: 4, wav: 'square' },
+        { name: "POPPER", cat: "PERC", seq: [1,0,1,0], notes: ["C4"], slds: [0], len: 8, wav: 'triangle' },
+        { name: "RHYTHM S", cat: "PERC", seq: [1,0,0,1,1,0,0,1], notes: ["C6"], slds: [0], len: 8, wav: 'square' },
+        { name: "TECHNO CL", cat: "PERC", seq: [1,1,1,1,1,1,1,1], notes: ["C5"], slds: [0], len: 8, wav: 'triangle' },
+        { name: "RISE UP", cat: "FX", seq: [1,0,0,0,0,0,0,0], notes: ["C1"], slds: [1], len: 16, wav: 'sawtooth' },
+        { name: "FALL DOWN", cat: "FX", seq: [1,0,0,0,0,0,0,0], notes: ["C6"], slds: [1], len: 16, wav: 'sawtooth' },
+        { name: "ALIEN CHAT", cat: "FX", seq: [1,1,1,1,1,1,1,1], notes: ["C4","F5","G3","B5"], slds: [1,1,1,1], len: 8, wav: 'square' },
+        { name: "UFO LAND", cat: "FX", seq: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], notes: ["C5","C2"], slds: [1], len: 16, wav: 'sawtooth' },
+        { name: "RADIO BRUM", cat: "FX", seq: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], notes: ["C1","C#1"], slds: [1], len: 16, wav: 'square' },
+        { name: "SPACE WIND", cat: "FX", seq: [1,0,0,0], notes: ["C3"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "BIO HAZARD", cat: "FX", seq: [1,1,1,1], notes: ["C2","F2"], slds: [1], len: 4, wav: 'sawtooth' },
+        { name: "DATA FLOW", cat: "FX", seq: [1,1,1,1,1,1,1,1], notes: ["C6","G6","D6"], slds: [0], len: 8, wav: 'square' },
+        { name: "SONAR BT", cat: "FX", seq: [1,0,0,0,1,0,0,0], notes: ["C6"], slds: [1], len: 8, wav: 'triangle' },
+        { name: "ACID WHIP", cat: "FX", seq: [1,0,0,0], notes: ["C5"], slds: [1], len: 4, wav: 'sawtooth' },
+        { name: "VOID SCAN", cat: "FX", seq: [1,0,1,0], notes: ["C2","C5"], slds: [1], len: 8, wav: 'square' },
+        { name: "GALAXY DR", cat: "FX", seq: [1,0,0,0], notes: ["C1"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "BEAM ME", cat: "FX", seq: [1,1,1,1], notes: ["C4","C6"], slds: [1], len: 4, wav: 'sawtooth' },
+        { name: "GHOST ECHO", cat: "FX", seq: [1,0,0,1], notes: ["C5"], slds: [1], len: 16, wav: 'triangle' },
+        { name: "STATIC EX", cat: "FX", seq: [1,1,1,1], notes: ["C6"], slds: [1], len: 4, wav: 'square' }
+    ];
+
+    const cats = ["BASS", "PSY", "LEAD", "PERC", "FX"];
+    let fullPresets = [...presets];
+    let curPreset = 0;
+
+    const synthParams = [
+        { id: 'tune', name: 'TUNE', min: -12, max: 12, val: 0 },
+        { id: 'cut', name: 'CUTOFF', min: 100, max: 8000, val: 1200 },
+        { id: 'res', name: 'RES', min: 1, max: 30, val: 15 },
+        { id: 'env', name: 'ENV MOD', min: 0, max: 8000, val: 4000 },
+        { id: 'dec', name: 'DECAY', min: 0.05, max: 0.6, val: 0.2 },
+        { id: 'acc', name: 'ACCENT', min: 0, max: 1, val: 0.5 }
+    ];
+
+    const fxParams = [
+        { id: 'drv', name: 'DRIVE', min: 0, max: 100, val: 30 },
+        { id: 'dtm', name: 'DELAY T', min: 0.1, max: 0.8, val: 0.3 },
+        { id: 'dfb', name: 'DELAY FDB', min: 0, max: 0.9, val: 0.4 },
+        { id: 'dmx', name: 'DELAY D/W', min: 0, max: 1, val: 0.2 },
+        { id: 'rvb', name: 'REVERB', min: 0, max: 1, val: 0.3 },
+        { id: 'mst', name: 'MASTER', min: 0, max: 1, val: 0.8 }
+    ];
+
+    const pattern = Array.from({length: 16}, () => ({ on: false, note: 'C2', freq: 65.41, acc: false, sld: false }));
+
+    function initAudio() {
+        if(ctx) return;
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain();
+        dist = ctx.createWaveShaper();
+        filter = ctx.createBiquadFilter(); filter.type = 'lowpass';
+        delay = ctx.createDelay();
+        dFbk = ctx.createGain();
+        dMix = ctx.createGain();
+        reverb = ctx.createConvolver();
+        rMix = ctx.createGain();
+        
+        const length = ctx.sampleRate * 2;
+        const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+        for (let i = 0; i < 2; i++) {
+            const channel = impulse.getChannelData(i);
+            for (let j = 0; j < length; j++) {
+                channel[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, 1.5);
+            }
+        }
+        reverb.buffer = impulse;
+
+        master.connect(dist);
+        dist.connect(filter);
+        filter.connect(ctx.destination);
+        filter.connect(delay);
+        delay.connect(dFbk);
+        dFbk.connect(delay);
+        delay.connect(dMix);
+        dMix.connect(ctx.destination);
+        filter.connect(reverb);
+        reverb.connect(rMix);
+        rMix.connect(ctx.destination);
+        updateAudio();
+    }
+
+    function updateAudio() {
+        if(!ctx) return;
+        let k = fxParams[0].val;
+        let n = 44100;
+        let curve = new Float32Array(n);
+        
+        if(distMode === 'soft') {
+            for (let i=0; i<n; ++i) { 
+                let x = i * 2 / n - 1; 
+                curve[i] = (3 + k) * x * 20 * (Math.PI/180) / (Math.PI + k * Math.abs(x)); 
+            }
+        } else {
+            // DISTORSIONE "HARD" POTENZIATA - Saturazione Asimmetrica Polinomiale
+            let gain = (k / 4) + 1.2; 
+            for (let i=0; i<n; ++i) {
+                let x = i * 2 / n - 1;
+                let y = x * gain;
+                // Clipping molto più brutale e sporco
+                if (y > 0.4) y = 0.4 + (y - 0.4) / (1 + Math.pow(y - 0.4, 2));
+                if (y < -0.3) y = -0.3 - (y + 0.3) / (1 + Math.pow(y + 0.3, 2));
+                curve[i] = y;
+            }
+        }
+        dist.curve = curve;
+        delay.delayTime.setTargetAtTime(fxParams[1].val, ctx.currentTime, 0.1);
+        dFbk.gain.value = fxParams[2].val;
+        dMix.gain.value = fxParams[3].val;
+        rMix.gain.value = fxParams[4].val;
+        master.gain.value = fxParams[5].val;
+    }
+
+    function renderKnob(p) {
+        const pct = (p.val - p.min) / (p.max - p.min);
+        const ring = document.getElementById(`arc-${p.id}`);
+        const cap = document.getElementById(`cap-${p.id}`);
+        if(ring) ring.style.strokeDashoffset = 125 - (pct * 95);
+        if(cap) cap.style.transform = `translate(-50%, -50%) rotate(${(pct * 270) - 135}deg)`;
+    }
+
+    function buildKnob(p, container) {
+        const div = document.createElement('div');
+        div.className = 'knob-unit';
+        div.innerHTML = `<label>${p.name}</label><div class="knob-container"><svg class="knob-ring" viewBox="0 0 60 60"><circle cx="30" cy="30" r="20" /><circle class="val-arc" id="arc-${p.id}" cx="30" cy="30" r="20" /></svg><div class="knob-cap" id="cap-${p.id}"></div></div>`;
+        
+        if(p.id === 'drv') {
+            const sw = document.createElement('div');
+            sw.className = 'dist-switch';
+            sw.innerHTML = `
+                <button class="dist-tgl ${distMode==='soft'?'active':''}" id="sw-soft" onclick="setDistMode('soft')">SOFT</button>
+                <button class="dist-tgl ${distMode==='hard'?'active':''}" id="sw-hard" onclick="setDistMode('hard')">HARD</button>
+            `;
+            div.appendChild(sw);
+        }
+
+        container.appendChild(div);
+        let isDragging = false, sY = 0;
+        const drag = (y) => { if(!isDragging) return; let d = (sY - y) * 0.005; p.val = Math.max(p.min, Math.min(p.max, p.val + d * (p.max - p.min))); sY = y; renderKnob(p); updateAudio(); };
+        div.onmousedown = (e) => { if(e.target.tagName !== 'BUTTON') { isDragging = true; sY = e.clientY; } };
+        div.ontouchstart = (e) => { if(e.target.tagName !== 'BUTTON') { isDragging = true; sY = e.touches[0].clientY; } };
+        window.addEventListener('mousemove', (e) => drag(e.clientY));
+        window.addEventListener('touchmove', (e) => drag(e.touches[0].clientY));
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('touchend', () => isDragging = false);
+        renderKnob(p);
+    }
+
+    function setDistMode(mode) {
+        distMode = mode;
+        document.getElementById('sw-soft').classList.toggle('active', mode === 'soft');
+        document.getElementById('sw-hard').classList.toggle('active', mode === 'hard');
+        updateAudio();
+    }
+
+    function scheduleNote(stepNumber, time) {
+        const s = pattern[stepNumber];
+        if (!s.on || stepNumber >= patternLength) return;
+
+        const now = time;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        const getP = (id) => synthParams.find(x => x.id === id).val;
+        
+        osc.type = waveType;
+        const nextStep = (stepNumber + 1) % patternLength;
+        const freq = s.freq * Math.pow(2, getP('tune')/12);
+        
+        osc.frequency.setValueAtTime(freq, now);
+        if (s.sld) {
+            const nextFreq = pattern[nextStep].freq * Math.pow(2, getP('tune')/12);
+            osc.frequency.exponentialRampToValueAtTime(nextFreq, now + (60/bpm/4));
+        }
+
+        const cut = getP('cut'), env = getP('env'), dec = getP('dec'), accVal = getP('acc');
+        filter.Q.setTargetAtTime(getP('res') + (s.acc ? 15 : 0), now, 0.01);
+        filter.frequency.setValueAtTime(cut, now);
+        filter.frequency.exponentialRampToValueAtTime(
+            Math.min(18000, cut + env + (s.acc ? (accVal * 5000) : 0)), 
+            now + 0.02
+        );
+        filter.frequency.exponentialRampToValueAtTime(cut, now + (s.sld ? dec * 3 : dec));
+
+        g.gain.setValueAtTime(s.acc ? 0.8 : 0.5, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + (s.sld ? (60/bpm/4) * 1.5 : dec));
+
+        osc.connect(g);
+        g.connect(master);
+        osc.start(now);
+        osc.stop(now + (s.sld ? 0.8 : 0.5));
+    }
+
+    function scheduler() {
+        while (nextNoteTime < ctx.currentTime + scheduleAheadTime) {
+            scheduleNote(currentStep, nextNoteTime);
+            advanceNote();
+        }
+    }
+
+    function advanceNote() {
+        const secondsPerBeat = 60.0 / bpm / 4; 
+        nextNoteTime += secondsPerBeat;
+        const stepToVisual = currentStep;
+        setTimeout(() => {
+            document.querySelectorAll('.step-led-dot').forEach(d => d.classList.remove('active'));
+            const dot = document.getElementById(`ldot-${stepToVisual}`);
+            if(dot) dot.classList.add('active');
+            updateStepLeds();
+        }, 0);
+        currentStep++;
+        if (currentStep >= patternLength) currentStep = 0;
+    }
+
+    function togglePlay(st) {
+        initAudio();
+        if(st && !isPlaying) { 
+            isPlaying = true; 
+            currentStep = 0;
+            nextNoteTime = ctx.currentTime;
+            document.getElementById('start-btn').classList.add('active'); 
+            timerID = setInterval(scheduler, lookAhead); 
+        }
+        else if(!st) { 
+            isPlaying = false; 
+            document.getElementById('start-btn').classList.remove('active'); 
+            const stopBtn = document.getElementById('stop-btn');
+            stopBtn.classList.add('active');
+            setTimeout(() => stopBtn.classList.remove('active'), 150);
+            clearInterval(timerID); 
+            currentStep = 0; 
+            document.querySelectorAll('.step-led-dot').forEach(d => d.classList.remove('active'));
+        }
+    }
+
+    function adjBpm(v) { 
+        bpm = Math.max(40, Math.min(300, bpm + v)); 
+        document.getElementById('bpm-val').innerText = bpm; 
+    }
+
+    function buildSeq() {
+        const grid = document.getElementById('seq-grid');
+        const selector = document.getElementById('len-selector');
+        grid.innerHTML = ''; selector.innerHTML = '';
+        for(let i=1; i<=16; i++) {
+            const b = document.createElement('button');
+            b.className = `len-btn ${i === patternLength ? 'active' : ''}`;
+            b.innerText = i; b.onclick = () => { patternLength = i; if(currentStep >= i) currentStep = 0; buildSeq(); };
+            selector.appendChild(b);
+        }
+        pattern.forEach((s, i) => {
+            const col = document.createElement('div');
+            col.className = `step-col ${i < patternLength ? 'in-range' : ''}`;
+            let noteOptions = noteNames.map(name => `<option value="${name}" ${s.note.startsWith(name) && (s.note.length === name.length+1) ? 'selected' : ''}>${name}</option>`).join('');
+            col.innerHTML = `
+                <div class="step-led-bar" id="lbar-${i}"></div>
+                <div class="step-led-dot" id="ldot-${i}"></div>
+                <button class="step-pad ${s.on?'active':''}" id="pad-${i}" onclick="tglStep(${i})"></button>
+                <button class="mini-btn" onclick="chgOct(${i}, 1)">+</button>
+                <select class="note-view-select" id="nv-${i}" onchange="chgNoteName(${i}, this.value)">
+                    ${noteOptions}
+                </select>
+                <button class="mini-btn" onclick="chgOct(${i}, -1)">-</button>
+                <div class="toggle-row">
+                    <button class="tgl ${s.acc?'on':''}" id="acc-${i}" onclick="tglA(${i})">ACC</button>
+                    <button class="tgl ${s.sld?'on':''}" id="sld-${i}" onclick="tglS(${i})">SLD</button>
+                </div>
+            `;
+            grid.appendChild(col);
+            const sel = col.querySelector('select');
+            const currentOctave = s.note.slice(-1);
+            Array.from(sel.options).forEach(opt => opt.text = opt.value + currentOctave);
+        });
+        updateStepLeds();
+    }
+
+    function randomizePattern() {
+        const notes = ["C", "D#", "F", "G", "A#"]; // Scala Pentatonica Minore per suonare sempre bene
+        const octaves = [1, 2, 3];
+        document.getElementById('oled-name').innerText = "RANDOM GEN";
+        document.getElementById('oled-cat').innerText = "USER";
+        pattern.forEach((s, i) => {
+            s.on = Math.random() > 0.4;
+            s.acc = Math.random() > 0.7;
+            s.sld = Math.random() > 0.7;
+            let n = notes[Math.floor(Math.random() * notes.length)];
+            let o = octaves[Math.floor(Math.random() * octaves.length)];
+            s.note = n + o;
+            s.freq = freqFromNote(s.note);
+        });
+        buildSeq();
+    }
+
+    function chgNoteName(i, newName) {
+        let currentOct = pattern[i].note.slice(-1);
+        pattern[i].note = newName + currentOct;
+        pattern[i].freq = freqFromNote(pattern[i].note);
+        const sel = document.getElementById(`nv-${i}`);
+        Array.from(sel.options).forEach(opt => opt.text = opt.value + currentOct);
+    }
+
+    function tglStep(i) { 
+        pattern[i].on = !pattern[i].on; 
+        document.getElementById(`pad-${i}`).classList.toggle('active', pattern[i].on);
+        updateStepLeds(); 
+        initAudio(); 
+    }
+    
+    function tglA(i) { 
+        pattern[i].acc = !pattern[i].acc; 
+        document.getElementById(`acc-${i}`).classList.toggle('on', pattern[i].acc);
+    }
+    
+    function tglS(i) { 
+        pattern[i].sld = !pattern[i].sld; 
+        document.getElementById(`sld-${i}`).classList.toggle('on', pattern[i].sld);
+    }
+
+    function chgOct(i, d) { 
+        let cur = pattern[i].note, n = cur.slice(0,-1), o = Math.max(1, Math.min(6, parseInt(cur.slice(-1)) + d));
+        pattern[i].note = n + o;
+        pattern[i].freq = freqFromNote(pattern[i].note);
+        const sel = document.getElementById(`nv-${i}`);
+        Array.from(sel.options).forEach(opt => opt.text = opt.value + o);
+    }
+
+    function updateStepLeds() {
+        document.querySelectorAll('.step-led-bar').forEach((b,i) => {
+            b.classList.toggle('on', pattern[i].on && i < patternLength);
+        });
+    }
+
+    function freqFromNote(note) {
+        let notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+        let n = note.slice(0,-1), o = parseInt(note.slice(-1));
+        return 440 * Math.pow(2, (notes.indexOf(n) + (o-4)*12)/12);
+    }
+
+    function applyPreset(idx) {
+        curPreset = idx;
+        const p = fullPresets[idx];
+        document.getElementById('oled-name').innerText = p.name;
+        document.getElementById('oled-cat').innerText = p.cat;
+        patternLength = p.len || 16;
+        setWave(p.wav || 'sawtooth');
+        pattern.forEach((s, i) => {
+            s.on = !!p.seq[i % p.seq.length];
+            s.note = p.notes[i % p.notes.length];
+            s.sld = !!p.slds[i % p.slds.length];
+            s.freq = freqFromNote(s.note);
+        });
+        buildSeq();
+        closeBrowser();
+    }
+
+    function navPreset(d) {
+        let idx = (curPreset + d + fullPresets.length) % fullPresets.length;
+        applyPreset(idx);
+    }
+
+    function openBrowser(e) {
+        const browser = document.getElementById('preset-browser');
+        const content = document.getElementById('browser-content');
+        content.innerHTML = '';
+        cats.forEach(c => {
+            const col = document.createElement('div');
+            col.className = 'category-col';
+            col.innerHTML = `<h3>${c}</h3><div class="preset-list" id="list-${c}"></div>`;
+            content.appendChild(col);
+            const list = col.querySelector(`#list-${c}`);
+            fullPresets.forEach((p, i) => {
+                if(p.cat === c) {
+                    const item = document.createElement('button');
+                    item.className = `preset-item ${curPreset === i ? 'active' : ''}`;
+                    item.innerText = p.name;
+                    item.onclick = () => applyPreset(i);
+                    list.appendChild(item);
+                }
+            });
+        });
+        browser.classList.add('open');
+    }
+
+    function closeBrowser() { document.getElementById('preset-browser').classList.remove('open'); }
+
+    function toggleSkin() { 
+        document.body.classList.remove(...skins);
+        currentSkinIndex = (currentSkinIndex + 1) % skins.length;
+        document.body.classList.add(skins[currentSkinIndex]);
+    }
+
+    function setWave(t) { 
+        waveType = t; 
+        document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active')); 
+        const idMap = { 'sawtooth': 'osc-saw', 'square': 'osc-squ', 'triangle': 'osc-tri' };
+        if(document.getElementById(idMap[t])) document.getElementById(idMap[t]).classList.add('active'); 
+    }
+
+    window.onload = () => {
+        const sCont = document.getElementById('synth-knobs'), fCont = document.getElementById('fx-knobs');
+        synthParams.forEach(p => buildKnob(p, sCont));
+        fxParams.forEach(p => buildKnob(p, fCont));
+        buildSeq();
+        applyPreset(0);
+    };
+</script>
+</body>
+</html>
