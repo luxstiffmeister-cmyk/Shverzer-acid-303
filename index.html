@@ -84,7 +84,15 @@
         .t-btn { background: #1a1a1a; border: 1px solid #333; color: #777; font-size: 9px; padding: 8px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 1px; transition: 0.1s; }
         .t-btn.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); border-color: #fff; }
 
-        .section-label { font-size: 8px; color: #444; letter-spacing: 2px; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #222; display: inline-block; padding-bottom: 2px; }
+        .section-label-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .section-label { font-size: 8px; color: #444; letter-spacing: 2px; font-weight: bold; border-bottom: 1px solid #222; display: inline-block; padding-bottom: 2px; }
+        
+        .bypass-btn { 
+            background: #1a1a1a; border: 1px solid #333; color: #555; font-size: 7px; padding: 4px 8px; 
+            cursor: pointer; border-radius: 2px; font-weight: bold; font-family: 'Orbitron'; transition: 0.2s;
+        }
+        .bypass-btn.active { background: #ff0000; color: #fff; border-color: #fff; box-shadow: 0 0 10px rgba(255,0,0,0.6); }
+
         .knob-row { display: grid; grid-template-columns: 0.8fr repeat(6, 1fr); gap: 12px; margin-bottom: 30px; }
         
         .osc-select { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
@@ -177,7 +185,6 @@
             </div>
             <button class="t-btn" id="start-btn" onclick="togglePlay(true)">START</button>
             <button class="t-btn" id="stop-btn" onclick="togglePlay(false)">STOP</button>
-            <button class="t-btn" onclick="randomizePattern()">RANDOM</button>
             <button class="t-btn" onclick="toggleSkin()">SKIN</button>
         </div>
     </header>
@@ -198,7 +205,10 @@
         <div class="seq-grid" id="seq-grid"></div>
     </div>
 
-    <div class="section-label">FX & MASTER</div>
+    <div class="section-label-row">
+        <div class="section-label">FX & MASTER</div>
+        <button class="bypass-btn" id="bypass-fx" onclick="toggleFxBypass()">FX BYPASS</button>
+    </div>
     <div class="fx-row" id="fx-knobs"></div>
 </div>
 
@@ -217,6 +227,7 @@
     let patternLength = 16;
     let waveType = 'sawtooth';
     let distMode = 'soft';
+    let fxBypass = false;
     let ctx, master, filter, dist, delay, dFbk, dMix, reverb, rMix;
     let currentSkinIndex = 3;
     const skins = ['skin-green', 'skin-pink', 'skin-cyan', 'skin-amber'];
@@ -355,20 +366,34 @@
 
         master.connect(dist);
         dist.connect(filter);
-        filter.connect(ctx.destination);
-        filter.connect(delay);
-        delay.connect(dFbk);
-        dFbk.connect(delay);
-        delay.connect(dMix);
-        dMix.connect(ctx.destination);
-        filter.connect(reverb);
-        reverb.connect(rMix);
-        rMix.connect(ctx.destination);
+        updateAudio();
+    }
+
+    function toggleFxBypass() {
+        fxBypass = !fxBypass;
+        document.getElementById('bypass-fx').classList.toggle('active', fxBypass);
         updateAudio();
     }
 
     function updateAudio() {
         if(!ctx) return;
+        
+        // Scollega tutto prima di rifare il routing per sicurezza
+        filter.disconnect();
+        dMix.disconnect();
+        rMix.disconnect();
+
+        if (fxBypass) {
+            filter.connect(ctx.destination);
+        } else {
+            filter.connect(ctx.destination);
+            filter.connect(delay);
+            delay.connect(dFbk); dFbk.connect(delay);
+            delay.connect(dMix); dMix.connect(ctx.destination);
+            filter.connect(reverb); reverb.connect(rMix);
+            rMix.connect(ctx.destination);
+        }
+
         let k = fxParams[0].val;
         let n = 44100;
         let curve = new Float32Array(n);
@@ -379,15 +404,11 @@
                 curve[i] = (3 + k) * x * 20 * (Math.PI/180) / (Math.PI + k * Math.abs(x)); 
             }
         } else {
-            // DISTORSIONE "HARD" POTENZIATA - Saturazione Asimmetrica Polinomiale
-            let gain = (k / 4) + 1.2; 
+            let gain = (k / 10) + 1;
             for (let i=0; i<n; ++i) {
                 let x = i * 2 / n - 1;
                 let y = x * gain;
-                // Clipping molto più brutale e sporco
-                if (y > 0.4) y = 0.4 + (y - 0.4) / (1 + Math.pow(y - 0.4, 2));
-                if (y < -0.3) y = -0.3 - (y + 0.3) / (1 + Math.pow(y + 0.3, 2));
-                curve[i] = y;
+                curve[i] = Math.max(-0.6, Math.min(0.6, y));
             }
         }
         dist.curve = curve;
@@ -471,10 +492,8 @@
         g.gain.setValueAtTime(s.acc ? 0.8 : 0.5, now);
         g.gain.exponentialRampToValueAtTime(0.001, now + (s.sld ? (60/bpm/4) * 1.5 : dec));
 
-        osc.connect(g);
-        g.connect(master);
-        osc.start(now);
-        osc.stop(now + (s.sld ? 0.8 : 0.5));
+        osc.connect(g); g.connect(master);
+        osc.start(now); osc.stop(now + (s.sld ? 0.8 : 0.5));
     }
 
     function scheduler() {
@@ -501,28 +520,21 @@
     function togglePlay(st) {
         initAudio();
         if(st && !isPlaying) { 
-            isPlaying = true; 
-            currentStep = 0;
-            nextNoteTime = ctx.currentTime;
+            isPlaying = true; currentStep = 0; nextNoteTime = ctx.currentTime;
             document.getElementById('start-btn').classList.add('active'); 
             timerID = setInterval(scheduler, lookAhead); 
-        }
-        else if(!st) { 
+        } else if(!st) { 
             isPlaying = false; 
             document.getElementById('start-btn').classList.remove('active'); 
             const stopBtn = document.getElementById('stop-btn');
             stopBtn.classList.add('active');
             setTimeout(() => stopBtn.classList.remove('active'), 150);
-            clearInterval(timerID); 
-            currentStep = 0; 
+            clearInterval(timerID); currentStep = 0; 
             document.querySelectorAll('.step-led-dot').forEach(d => d.classList.remove('active'));
         }
     }
 
-    function adjBpm(v) { 
-        bpm = Math.max(40, Math.min(300, bpm + v)); 
-        document.getElementById('bpm-val').innerText = bpm; 
-    }
+    function adjBpm(v) { bpm = Math.max(40, Math.min(300, bpm + v)); document.getElementById('bpm-val').innerText = bpm; }
 
     function buildSeq() {
         const grid = document.getElementById('seq-grid');
@@ -543,38 +555,18 @@
                 <div class="step-led-dot" id="ldot-${i}"></div>
                 <button class="step-pad ${s.on?'active':''}" id="pad-${i}" onclick="tglStep(${i})"></button>
                 <button class="mini-btn" onclick="chgOct(${i}, 1)">+</button>
-                <select class="note-view-select" id="nv-${i}" onchange="chgNoteName(${i}, this.value)">
-                    ${noteOptions}
-                </select>
+                <select class="note-view-select" id="nv-${i}" onchange="chgNoteName(${i}, this.value)">${noteOptions}</select>
                 <button class="mini-btn" onclick="chgOct(${i}, -1)">-</button>
                 <div class="toggle-row">
                     <button class="tgl ${s.acc?'on':''}" id="acc-${i}" onclick="tglA(${i})">ACC</button>
                     <button class="tgl ${s.sld?'on':''}" id="sld-${i}" onclick="tglS(${i})">SLD</button>
-                </div>
-            `;
+                </div>`;
             grid.appendChild(col);
             const sel = col.querySelector('select');
             const currentOctave = s.note.slice(-1);
             Array.from(sel.options).forEach(opt => opt.text = opt.value + currentOctave);
         });
         updateStepLeds();
-    }
-
-    function randomizePattern() {
-        const notes = ["C", "D#", "F", "G", "A#"]; // Scala Pentatonica Minore per suonare sempre bene
-        const octaves = [1, 2, 3];
-        document.getElementById('oled-name').innerText = "RANDOM GEN";
-        document.getElementById('oled-cat').innerText = "USER";
-        pattern.forEach((s, i) => {
-            s.on = Math.random() > 0.4;
-            s.acc = Math.random() > 0.7;
-            s.sld = Math.random() > 0.7;
-            let n = notes[Math.floor(Math.random() * notes.length)];
-            let o = octaves[Math.floor(Math.random() * octaves.length)];
-            s.note = n + o;
-            s.freq = freqFromNote(s.note);
-        });
-        buildSeq();
     }
 
     function chgNoteName(i, newName) {
@@ -588,32 +580,20 @@
     function tglStep(i) { 
         pattern[i].on = !pattern[i].on; 
         document.getElementById(`pad-${i}`).classList.toggle('active', pattern[i].on);
-        updateStepLeds(); 
-        initAudio(); 
+        updateStepLeds(); initAudio(); 
     }
     
-    function tglA(i) { 
-        pattern[i].acc = !pattern[i].acc; 
-        document.getElementById(`acc-${i}`).classList.toggle('on', pattern[i].acc);
-    }
-    
-    function tglS(i) { 
-        pattern[i].sld = !pattern[i].sld; 
-        document.getElementById(`sld-${i}`).classList.toggle('on', pattern[i].sld);
-    }
-
+    function tglA(i) { pattern[i].acc = !pattern[i].acc; document.getElementById(`acc-${i}`).classList.toggle('on', pattern[i].acc); }
+    function tglS(i) { pattern[i].sld = !pattern[i].sld; document.getElementById(`sld-${i}`).classList.toggle('on', pattern[i].sld); }
     function chgOct(i, d) { 
         let cur = pattern[i].note, n = cur.slice(0,-1), o = Math.max(1, Math.min(6, parseInt(cur.slice(-1)) + d));
-        pattern[i].note = n + o;
-        pattern[i].freq = freqFromNote(pattern[i].note);
+        pattern[i].note = n + o; pattern[i].freq = freqFromNote(pattern[i].note);
         const sel = document.getElementById(`nv-${i}`);
         Array.from(sel.options).forEach(opt => opt.text = opt.value + o);
     }
 
     function updateStepLeds() {
-        document.querySelectorAll('.step-led-bar').forEach((b,i) => {
-            b.classList.toggle('on', pattern[i].on && i < patternLength);
-        });
+        document.querySelectorAll('.step-led-bar').forEach((b,i) => { b.classList.toggle('on', pattern[i].on && i < patternLength); });
     }
 
     function freqFromNote(note) {
@@ -623,61 +603,47 @@
     }
 
     function applyPreset(idx) {
-        curPreset = idx;
-        const p = fullPresets[idx];
+        curPreset = idx; const p = fullPresets[idx];
         document.getElementById('oled-name').innerText = p.name;
         document.getElementById('oled-cat').innerText = p.cat;
         patternLength = p.len || 16;
         setWave(p.wav || 'sawtooth');
         pattern.forEach((s, i) => {
-            s.on = !!p.seq[i % p.seq.length];
-            s.note = p.notes[i % p.notes.length];
-            s.sld = !!p.slds[i % p.slds.length];
-            s.freq = freqFromNote(s.note);
+            s.on = !!p.seq[i % p.seq.length]; s.note = p.notes[i % p.notes.length];
+            s.sld = !!p.slds[i % p.slds.length]; s.freq = freqFromNote(s.note);
         });
-        buildSeq();
-        closeBrowser();
+        buildSeq(); closeBrowser();
     }
 
-    function navPreset(d) {
-        let idx = (curPreset + d + fullPresets.length) % fullPresets.length;
-        applyPreset(idx);
-    }
+    function navPreset(d) { let idx = (curPreset + d + fullPresets.length) % fullPresets.length; applyPreset(idx); }
 
     function openBrowser(e) {
         const browser = document.getElementById('preset-browser');
         const content = document.getElementById('browser-content');
         content.innerHTML = '';
         cats.forEach(c => {
-            const col = document.createElement('div');
-            col.className = 'category-col';
+            const col = document.createElement('div'); col.className = 'category-col';
             col.innerHTML = `<h3>${c}</h3><div class="preset-list" id="list-${c}"></div>`;
             content.appendChild(col);
             const list = col.querySelector(`#list-${c}`);
-            fullPresets.forEach((p, i) => {
-                if(p.cat === c) {
-                    const item = document.createElement('button');
-                    item.className = `preset-item ${curPreset === i ? 'active' : ''}`;
-                    item.innerText = p.name;
-                    item.onclick = () => applyPreset(i);
-                    list.appendChild(item);
-                }
-            });
+            fullPresets.forEach((p, i) => { if(p.cat === c) {
+                const item = document.createElement('button');
+                item.className = `preset-item ${curPreset === i ? 'active' : ''}`;
+                item.innerText = p.name; item.onclick = () => applyPreset(i);
+                list.appendChild(item);
+            }});
         });
         browser.classList.add('open');
     }
 
     function closeBrowser() { document.getElementById('preset-browser').classList.remove('open'); }
-
     function toggleSkin() { 
         document.body.classList.remove(...skins);
         currentSkinIndex = (currentSkinIndex + 1) % skins.length;
         document.body.classList.add(skins[currentSkinIndex]);
     }
-
     function setWave(t) { 
-        waveType = t; 
-        document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active')); 
+        waveType = t; document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active')); 
         const idMap = { 'sawtooth': 'osc-saw', 'square': 'osc-squ', 'triangle': 'osc-tri' };
         if(document.getElementById(idMap[t])) document.getElementById(idMap[t]).classList.add('active'); 
     }
@@ -686,8 +652,7 @@
         const sCont = document.getElementById('synth-knobs'), fCont = document.getElementById('fx-knobs');
         synthParams.forEach(p => buildKnob(p, sCont));
         fxParams.forEach(p => buildKnob(p, fCont));
-        buildSeq();
-        applyPreset(0);
+        buildSeq(); applyPreset(0);
     };
 </script>
 </body>
