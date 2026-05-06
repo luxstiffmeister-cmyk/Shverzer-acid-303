@@ -83,6 +83,10 @@
         .bpm-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 18px; font-weight: bold; padding: 0 5px; }
         .t-btn { background: #1a1a1a; border: 1px solid #333; color: #777; font-size: 9px; padding: 8px 12px; cursor: pointer; border-radius: 3px; font-weight: bold; letter-spacing: 1px; transition: 0.1s; }
         .t-btn.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); border-color: #fff; }
+        
+        #rec-btn.recording { background: #ff0000; color: #fff; animation: blink 1s infinite; }
+        #rec-btn.armed { background: #ffb300; color: #000; }
+        @keyframes blink { 50% { opacity: 0.5; } }
 
         .section-label-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
         .section-label { font-size: 8px; color: #444; letter-spacing: 2px; font-weight: bold; border-bottom: 1px solid #222; display: inline-block; padding-bottom: 2px; }
@@ -183,6 +187,8 @@
                 <span id="bpm-val">128</span>
                 <button class="bpm-btn" onclick="adjBpm(1)">+</button>
             </div>
+            <button class="t-btn" id="rand-btn" onclick="randomizeAll()">RANDOM</button>
+            <button class="t-btn" id="rec-btn" onclick="toggleRecording()">REC</button>
             <button class="t-btn" id="start-btn" onclick="togglePlay(true)">START</button>
             <button class="t-btn" id="stop-btn" onclick="togglePlay(false)">STOP</button>
             <button class="t-btn" onclick="toggleSkin()">SKIN</button>
@@ -228,7 +234,7 @@
     let waveType = 'sawtooth';
     let distMode = 'soft';
     let fxBypass = false;
-    let ctx, master, filter, dist, delay, dFbk, dMix, reverb, rMix;
+    let ctx, master, filter, dist, delay, dFbk, dMix, reverb, rMix, mainBus;
     let currentSkinIndex = 3;
     const skins = ['skin-green', 'skin-pink', 'skin-cyan', 'skin-amber'];
     
@@ -236,6 +242,11 @@
     let lookAhead = 25.0; 
     let scheduleAheadTime = 0.1;
     let nextNoteTime = 0.0;
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecordingArmed = false;
+    let isRecordingActive = false;
 
     const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     const gNote = (n, len=16) => Array(len).fill(n);
@@ -353,6 +364,7 @@
         dMix = ctx.createGain();
         reverb = ctx.createConvolver();
         rMix = ctx.createGain();
+        mainBus = ctx.createGain(); // Bus finale per registrazione corretta
         
         const length = ctx.sampleRate * 2;
         const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
@@ -366,6 +378,7 @@
 
         master.connect(dist);
         dist.connect(filter);
+        mainBus.connect(ctx.destination);
         updateAudio();
     }
 
@@ -377,39 +390,28 @@
 
     function updateAudio() {
         if(!ctx) return;
-        
-        // Scollega tutto prima di rifare il routing per sicurezza
         filter.disconnect();
         dMix.disconnect();
         rMix.disconnect();
-
-        if (fxBypass) {
-            filter.connect(ctx.destination);
+        if (fxBypass) { 
+            filter.connect(mainBus); 
         } else {
-            filter.connect(ctx.destination);
+            filter.connect(mainBus); // Dry
             filter.connect(delay);
             delay.connect(dFbk); dFbk.connect(delay);
-            delay.connect(dMix); dMix.connect(ctx.destination);
+            delay.connect(dMix); dMix.connect(mainBus); // Delay Out
             filter.connect(reverb); reverb.connect(rMix);
-            rMix.connect(ctx.destination);
+            rMix.connect(mainBus); // Reverb Out
         }
-
+        
         let k = fxParams[0].val;
         let n = 44100;
         let curve = new Float32Array(n);
-        
         if(distMode === 'soft') {
-            for (let i=0; i<n; ++i) { 
-                let x = i * 2 / n - 1; 
-                curve[i] = (3 + k) * x * 20 * (Math.PI/180) / (Math.PI + k * Math.abs(x)); 
-            }
+            for (let i=0; i<n; ++i) { let x = i * 2 / n - 1; curve[i] = (3 + k) * x * 20 * (Math.PI/180) / (Math.PI + k * Math.abs(x)); }
         } else {
             let gain = (k / 10) + 1;
-            for (let i=0; i<n; ++i) {
-                let x = i * 2 / n - 1;
-                let y = x * gain;
-                curve[i] = Math.max(-0.6, Math.min(0.6, y));
-            }
+            for (let i=0; i<n; ++i) { let x = i * 2 / n - 1; let y = x * gain; curve[i] = Math.max(-0.6, Math.min(0.6, y)); }
         }
         dist.curve = curve;
         delay.delayTime.setTargetAtTime(fxParams[1].val, ctx.currentTime, 0.1);
@@ -431,17 +433,12 @@
         const div = document.createElement('div');
         div.className = 'knob-unit';
         div.innerHTML = `<label>${p.name}</label><div class="knob-container"><svg class="knob-ring" viewBox="0 0 60 60"><circle cx="30" cy="30" r="20" /><circle class="val-arc" id="arc-${p.id}" cx="30" cy="30" r="20" /></svg><div class="knob-cap" id="cap-${p.id}"></div></div>`;
-        
         if(p.id === 'drv') {
             const sw = document.createElement('div');
             sw.className = 'dist-switch';
-            sw.innerHTML = `
-                <button class="dist-tgl ${distMode==='soft'?'active':''}" id="sw-soft" onclick="setDistMode('soft')">SOFT</button>
-                <button class="dist-tgl ${distMode==='hard'?'active':''}" id="sw-hard" onclick="setDistMode('hard')">HARD</button>
-            `;
+            sw.innerHTML = `<button class="dist-tgl ${distMode==='soft'?'active':''}" id="sw-soft" onclick="setDistMode('soft')">SOFT</button><button class="dist-tgl ${distMode==='hard'?'active':''}" id="sw-hard" onclick="setDistMode('hard')">HARD</button>`;
             div.appendChild(sw);
         }
-
         container.appendChild(div);
         let isDragging = false, sY = 0;
         const drag = (y) => { if(!isDragging) return; let d = (sY - y) * 0.005; p.val = Math.max(p.min, Math.min(p.max, p.val + d * (p.max - p.min))); sY = y; renderKnob(p); updateAudio(); };
@@ -464,34 +461,25 @@
     function scheduleNote(stepNumber, time) {
         const s = pattern[stepNumber];
         if (!s.on || stepNumber >= patternLength) return;
-
         const now = time;
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
         const getP = (id) => synthParams.find(x => x.id === id).val;
-        
         osc.type = waveType;
         const nextStep = (stepNumber + 1) % patternLength;
         const freq = s.freq * Math.pow(2, getP('tune')/12);
-        
         osc.frequency.setValueAtTime(freq, now);
         if (s.sld) {
             const nextFreq = pattern[nextStep].freq * Math.pow(2, getP('tune')/12);
             osc.frequency.exponentialRampToValueAtTime(nextFreq, now + (60/bpm/4));
         }
-
         const cut = getP('cut'), env = getP('env'), dec = getP('dec'), accVal = getP('acc');
         filter.Q.setTargetAtTime(getP('res') + (s.acc ? 15 : 0), now, 0.01);
         filter.frequency.setValueAtTime(cut, now);
-        filter.frequency.exponentialRampToValueAtTime(
-            Math.min(18000, cut + env + (s.acc ? (accVal * 5000) : 0)), 
-            now + 0.02
-        );
+        filter.frequency.exponentialRampToValueAtTime(Math.min(18000, cut + env + (s.acc ? (accVal * 5000) : 0)), now + 0.02);
         filter.frequency.exponentialRampToValueAtTime(cut, now + (s.sld ? dec * 3 : dec));
-
         g.gain.setValueAtTime(s.acc ? 0.8 : 0.5, now);
         g.gain.exponentialRampToValueAtTime(0.001, now + (s.sld ? (60/bpm/4) * 1.5 : dec));
-
         osc.connect(g); g.connect(master);
         osc.start(now); osc.stop(now + (s.sld ? 0.8 : 0.5));
     }
@@ -507,6 +495,12 @@
         const secondsPerBeat = 60.0 / bpm / 4; 
         nextNoteTime += secondsPerBeat;
         const stepToVisual = currentStep;
+
+        if (stepToVisual === 0 && isPlaying) {
+            if (isRecordingArmed && !isRecordingActive) startActualRecording();
+            else if (!isRecordingArmed && isRecordingActive) stopActualRecording();
+        }
+
         setTimeout(() => {
             document.querySelectorAll('.step-led-dot').forEach(d => d.classList.remove('active'));
             const dot = document.getElementById(`ldot-${stepToVisual}`);
@@ -525,6 +519,7 @@
             timerID = setInterval(scheduler, lookAhead); 
         } else if(!st) { 
             isPlaying = false; 
+            if (isRecordingActive) stopActualRecording(); 
             document.getElementById('start-btn').classList.remove('active'); 
             const stopBtn = document.getElementById('stop-btn');
             stopBtn.classList.add('active');
@@ -532,6 +527,114 @@
             clearInterval(timerID); currentStep = 0; 
             document.querySelectorAll('.step-led-dot').forEach(d => d.classList.remove('active'));
         }
+    }
+
+    function randomizeAll() {
+        pattern.forEach((s, i) => {
+            s.on = Math.random() > 0.4;
+            s.acc = Math.random() > 0.7;
+            s.sld = Math.random() > 0.8;
+            const n = noteNames[Math.floor(Math.random() * noteNames.length)];
+            const o = Math.floor(Math.random() * 3) + 1;
+            s.note = n + o;
+            s.freq = freqFromNote(s.note);
+        });
+        synthParams.forEach(p => {
+            p.val = Math.random() * (p.max - p.min) + p.min;
+            renderKnob(p);
+        });
+        buildSeq();
+        updateAudio();
+    }
+
+    function toggleRecording() {
+        initAudio();
+        const btn = document.getElementById('rec-btn');
+        if (!isRecordingActive && !isRecordingArmed) {
+            isRecordingArmed = true;
+            btn.innerText = "WAIT...";
+            btn.classList.add('armed');
+            if (!isPlaying) togglePlay(true); 
+        } else {
+            isRecordingArmed = false;
+            btn.innerText = "STOPPING...";
+        }
+    }
+
+    function startActualRecording() {
+        audioChunks = [];
+        const dest = ctx.createMediaStreamDestination();
+        mainBus.connect(dest); // Registra tutto dal Bus finale (compreso FX)
+        mediaRecorder = new MediaRecorder(dest.stream);
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks);
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            const wavBuffer = audioBufferToWav(audioBuffer);
+            const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+            
+            const url = URL.createObjectURL(wavBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `shverder_loop_${Date.now()}.wav`;
+            a.click();
+        };
+        mediaRecorder.start();
+        isRecordingActive = true;
+        const btn = document.getElementById('rec-btn');
+        btn.innerText = "● RECORDING";
+        btn.classList.remove('armed');
+        btn.classList.add('recording');
+    }
+
+    function stopActualRecording() {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+        isRecordingActive = false;
+        const btn = document.getElementById('rec-btn');
+        btn.innerText = "REC";
+        btn.classList.remove('recording');
+    }
+
+    // Encoder per convertire il buffer grezzo in un vero file WAV PCM 16-bit
+    function audioBufferToWav(buffer) {
+        let numOfChan = buffer.numberOfChannels,
+            length = buffer.length * numOfChan * 2 + 44,
+            bufferWav = new ArrayBuffer(length),
+            view = new DataView(bufferWav),
+            channels = [], i, sample,
+            offset = 0,
+            pos = 0;
+
+        function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+        function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+
+        setUint32(0x46464952); // "RIFF"
+        setUint32(length - 8);
+        setUint32(0x45564157); // "WAVE"
+        setUint32(0x20746d66); // "fmt "
+        setUint32(16);
+        setUint16(1); // PCM
+        setUint16(numOfChan);
+        setUint32(buffer.sampleRate);
+        setUint32(buffer.sampleRate * 2 * numOfChan);
+        setUint16(numOfChan * 2);
+        setUint16(16);
+        setUint32(0x61746164); // "data"
+        setUint32(length - pos - 4);
+
+        for (i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+
+        while (pos < length) {
+            for (i = 0; i < numOfChan; i++) {
+                sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+                view.setInt16(pos, sample, true);
+                pos += 2;
+            }
+            offset++;
+        }
+        return bufferWav;
     }
 
     function adjBpm(v) { bpm = Math.max(40, Math.min(300, bpm + v)); document.getElementById('bpm-val').innerText = bpm; }
@@ -582,7 +685,6 @@
         document.getElementById(`pad-${i}`).classList.toggle('active', pattern[i].on);
         updateStepLeds(); initAudio(); 
     }
-    
     function tglA(i) { pattern[i].acc = !pattern[i].acc; document.getElementById(`acc-${i}`).classList.toggle('on', pattern[i].acc); }
     function tglS(i) { pattern[i].sld = !pattern[i].sld; document.getElementById(`sld-${i}`).classList.toggle('on', pattern[i].sld); }
     function chgOct(i, d) { 
@@ -591,17 +693,12 @@
         const sel = document.getElementById(`nv-${i}`);
         Array.from(sel.options).forEach(opt => opt.text = opt.value + o);
     }
-
-    function updateStepLeds() {
-        document.querySelectorAll('.step-led-bar').forEach((b,i) => { b.classList.toggle('on', pattern[i].on && i < patternLength); });
-    }
-
+    function updateStepLeds() { document.querySelectorAll('.step-led-bar').forEach((b,i) => { b.classList.toggle('on', pattern[i].on && i < patternLength); }); }
     function freqFromNote(note) {
         let notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
         let n = note.slice(0,-1), o = parseInt(note.slice(-1));
         return 440 * Math.pow(2, (notes.indexOf(n) + (o-4)*12)/12);
     }
-
     function applyPreset(idx) {
         curPreset = idx; const p = fullPresets[idx];
         document.getElementById('oled-name').innerText = p.name;
@@ -614,9 +711,7 @@
         });
         buildSeq(); closeBrowser();
     }
-
     function navPreset(d) { let idx = (curPreset + d + fullPresets.length) % fullPresets.length; applyPreset(idx); }
-
     function openBrowser(e) {
         const browser = document.getElementById('preset-browser');
         const content = document.getElementById('browser-content');
@@ -635,7 +730,6 @@
         });
         browser.classList.add('open');
     }
-
     function closeBrowser() { document.getElementById('preset-browser').classList.remove('open'); }
     function toggleSkin() { 
         document.body.classList.remove(...skins);
